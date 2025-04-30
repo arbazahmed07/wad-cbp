@@ -18,7 +18,14 @@ export const getClients = async (): Promise<Client[]> => {
 
 export const getClient = async (id: string): Promise<Client> => {
   const response: AxiosResponse<Client> = await api.get(`/clients/${id}`);
-  return response.data;
+  
+  // Transform dates to Date objects in the response
+  const client = response.data;
+  if (client.dateOfBirth) client.dateOfBirth = new Date(client.dateOfBirth);
+  if (client.joinDate) client.joinDate = new Date(client.joinDate);
+  if (client.nextCheckIn) client.nextCheckIn = new Date(client.nextCheckIn);
+  
+  return client;
 };
 
 export const createClient = async (clientData: Partial<Client>): Promise<Client> => {
@@ -166,6 +173,51 @@ export const updateProgressEntry = async (id: string, entryData: Partial<Progres
 
 export const deleteProgressEntry = async (id: string): Promise<void> => {
   await api.delete(`/progress-entries/${id}`);
+};
+
+// Dashboard API calls
+export interface DashboardStats {
+  totalClients: number;
+  newClients: number;
+  upcomingCheckIns: Array<{
+    _id: string;
+    date: string;
+    clientId: {
+      _id: string;
+      firstName: string;
+      lastName: string;
+    };
+    status: string;
+    notes?: string;
+  }>;
+  activityCount: number;
+}
+
+export const getDashboardStats = async (): Promise<DashboardStats> => {
+  const response = await api.get('/dashboard/stats');
+  
+  // Format dates in upcoming check-ins if needed
+  const stats = response.data;
+  if (stats.upcomingCheckIns) {
+    stats.upcomingCheckIns = stats.upcomingCheckIns.map((checkIn: DashboardStats['upcomingCheckIns'][0]) => ({
+      ...checkIn,
+      date: new Date(checkIn.date)
+    }));
+  }
+  
+  return stats;
+};
+
+export const getRecentClients = async (): Promise<Client[]> => {
+  const response = await api.get('/dashboard/recent-clients');
+  
+  // Transform dates to Date objects
+  return response.data.map((client: Partial<Client>) => ({
+    ...client,
+    dateOfBirth: client.dateOfBirth ? new Date(client.dateOfBirth) : undefined,
+    joinDate: client.joinDate ? new Date(client.joinDate) : undefined,
+    nextCheckIn: client.nextCheckIn ? new Date(client.nextCheckIn) : undefined,
+  }));
 };
 
 export default api;

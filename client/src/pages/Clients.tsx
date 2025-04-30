@@ -15,6 +15,8 @@ import AddClientForm from "@/components/AddClientForm";
 import { getClients, createClient } from "@/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { getClientId } from "@/utils/idUtils";
+import { Link } from "react-router-dom";
 
 const Clients = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -129,7 +131,12 @@ const Clients = () => {
           </div>
         ) : filteredClients.length > 0 ? (
           filteredClients.map(client => (
-            <ClientCard key={client.id} client={client} />
+            <Link 
+              key={client.id} 
+              to={`/clients/${client.id}`}
+            >
+              <ClientCard client={client} />
+            </Link>
           ))
         ) : (
           <div className="col-span-full text-center py-10">

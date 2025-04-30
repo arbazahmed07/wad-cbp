@@ -142,7 +142,7 @@ const CheckIns = () => {
       return;
     }
 
-    const client = clients.find((c) => c._id === selectedClient || c.id === selectedClient);
+    const client = clients.find((c) => c.id === selectedClient);
     if (!client) return;
 
     // Ensure we're working with a Date object
@@ -150,8 +150,9 @@ const CheckIns = () => {
     
     const newCheckIn = {
       clientId: selectedClient,
+      clientName: `${client.firstName} ${client.lastName}`,
       date: checkInDate,
-      status: "scheduled",
+      status: "scheduled" as "scheduled" | "completed" | "cancelled",
       notes: notes,
       duration: parseInt(duration),
     };
@@ -218,7 +219,7 @@ const CheckIns = () => {
                         <SelectItem value="loading" disabled>Loading clients...</SelectItem>
                       ) : clients.length > 0 ? (
                         clients.map((client) => (
-                          <SelectItem key={client._id || client.id} value={client._id || client.id}>
+                          <SelectItem key={client.id} value={client.id}>
                             {client.firstName} {client.lastName}
                           </SelectItem>
                         ))
@@ -325,7 +326,7 @@ const CheckIns = () => {
               </TableHeader>
               <TableBody>
                 {sortedCheckIns.map((checkIn) => (
-                  <TableRow key={checkIn._id || checkIn.id}>
+                  <TableRow key={checkIn.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <CalendarCheck className="h-4 w-4 text-muted-foreground" />
@@ -333,8 +334,8 @@ const CheckIns = () => {
                       </div>
                     </TableCell>
                     <TableCell>{checkIn.clientName || 
-                      clients.find(c => c._id === checkIn.clientId || c.id === checkIn.clientId)
-                        ? `${clients.find(c => c._id === checkIn.clientId || c.id === checkIn.clientId)?.firstName} ${clients.find(c => c._id === checkIn.clientId || c.id === checkIn.clientId)?.lastName}`
+                      clients.find(c => c.id === checkIn.clientId)
+                        ? `${clients.find(c => c.id === checkIn.clientId)?.firstName} ${clients.find(c => c.id === checkIn.clientId)?.lastName}`
                         : "Unknown Client"
                     }</TableCell>
                     <TableCell>
@@ -357,7 +358,7 @@ const CheckIns = () => {
                         <Select
                           value={checkIn.status}
                           onValueChange={(value: "scheduled" | "completed" | "cancelled") => 
-                            handleStatusChange(checkIn._id || checkIn.id, value)
+                            handleStatusChange(checkIn.id, value)
                           }
                           disabled={updateStatusMutation.isPending}
                         >

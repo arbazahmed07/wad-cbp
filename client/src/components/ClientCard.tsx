@@ -13,7 +13,7 @@ const ClientCard = ({ client }: ClientCardProps) => {
   const primaryGoal = Array.isArray(client.goals) && client.goals.length > 0 ? client.goals[0] : null;
   const progressPercentage = primaryGoal?.progress || 0;
   
-  // Use client.id for navigation
+  // Use client id
   const clientId = client.id;
 
   return (

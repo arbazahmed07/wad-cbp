@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
-import { mockClients } from "@/data/mockData";
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { getClient } from "@/api";
 import { format } from "date-fns";
 import { 
   Card, 
@@ -24,7 +25,9 @@ import {
   Edit,
   FileText,
   Utensils,
-  CalendarCheck
+  CalendarCheck,
+  Clock,
+  ArrowRight
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { goalStatusColors, goalTypeColors } from "@/data/mockData";
@@ -34,14 +37,13 @@ import ScheduleCheckInForm from "@/components/ScheduleCheckInForm";
 import AddGoalForm from "@/components/AddGoalForm";
 import EditDietPlanForm from "@/components/EditDietPlanForm";
 import { Client, CheckIn, Goal, DietPlan } from "@/types";
-
-import { useQuery } from "@tanstack/react-query";
-import { getClient } from "@/api"; // Fixed import path - importing from main API file
+import { toast } from "sonner";
 
 const ClientDetail = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [client, setClient] = useState<Client | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
   
   const [isEditingClient, setIsEditingClient] = useState(false);
@@ -49,21 +51,22 @@ const ClientDetail = () => {
   const [isAddingGoal, setIsAddingGoal] = useState(false);
   const [isEditingDietPlan, setIsEditingDietPlan] = useState(false);
 
-  // Use React Query to fetch client data
-  const { data: clientData, isLoading: isClientLoading, error: clientError } = useQuery({
+  // Query client data
+  const { data: clientData, error: clientError } = useQuery({
     queryKey: ['client', id],
-    queryFn: () => getClient(id!),
-    enabled: !!id,
+    queryFn: () => id ? getClient(id) : Promise.reject('No client ID provided'),
+    retry: 1, // Only retry once to avoid excessive requests if client doesn't exist
+    enabled: !!id
   });
 
-  // Update local state when query data changes
+  // Process client data when it's available
   useEffect(() => {
     if (clientData) {
-      // Convert string dates to Date objects
       const processedClient = {
         ...clientData,
+        // Ensure dates are Date objects
         dateOfBirth: clientData.dateOfBirth ? new Date(clientData.dateOfBirth) : undefined,
-        joinDate: clientData.joinDate ? new Date(clientData.joinDate) : new Date(),
+        joinDate: clientData.joinDate ? new Date(clientData.joinDate) : undefined,
         nextCheckIn: clientData.nextCheckIn ? new Date(clientData.nextCheckIn) : undefined,
         goals: clientData.goals?.map(goal => ({
           ...goal,
@@ -100,11 +103,8 @@ const ClientDetail = () => {
       <div className="flex flex-col items-center justify-center h-[60vh]">
         <h2 className="text-2xl font-bold mb-2">Client Not Found</h2>
         <p className="text-gray-500 mb-4">The client you're looking for doesn't exist</p>
-        <Button asChild>
-          <a href="/clients">
-            <ChevronLeft className="mr-2 h-4 w-4" />
-            Back to Clients
-          </a>
+        <Button onClick={() => navigate('/clients')}>
+          Back to Clients
         </Button>
       </div>
     );
@@ -113,6 +113,7 @@ const ClientDetail = () => {
   const handleUpdateClient = (updatedClient: Client) => {
     setClient(updatedClient);
     setIsEditingClient(false);
+    toast.success("Client updated successfully");
   };
 
   const handleScheduleCheckIn = (newCheckIn: CheckIn) => {
@@ -121,6 +122,7 @@ const ClientDetail = () => {
       nextCheckIn: newCheckIn.date
     });
     setIsSchedulingCheckIn(false);
+    toast.success("Check-in scheduled successfully");
   };
 
   const handleAddGoal = (newGoal: Goal) => {
@@ -129,6 +131,7 @@ const ClientDetail = () => {
       goals: [...client.goals, newGoal]
     });
     setIsAddingGoal(false);
+    toast.success("Goal added successfully");
   };
 
   const handleUpdateDietPlan = (updatedDietPlan: DietPlan) => {
@@ -137,6 +140,7 @@ const ClientDetail = () => {
       dietPlan: updatedDietPlan
     });
     setIsEditingDietPlan(false);
+    toast.success("Diet plan updated successfully");
   };
 
   return (
@@ -278,9 +282,9 @@ const ClientDetail = () => {
                           <span className="text-gray-600">Progress</span>
                           <span>{goal.progress}%</span>
                         </div>
-                        <div className="goal-progress">
+                        <div className="h-2 bg-gray-100 rounded-full">
                           <div 
-                            className={`goal-progress-bar ${goalStatusColors[goal.status]}`} 
+                            className={`h-2 rounded-full ${goalTypeColors[goal.type]}`} 
                             style={{ width: `${goal.progress}%` }}
                           ></div>
                         </div>
@@ -290,7 +294,7 @@ const ClientDetail = () => {
                         {goal.targetDate && (
                           <div>
                             <div className="font-medium">Target Date</div>
-                            <div>{format(goal.targetDate, "MMM d, yyyy")}</div>
+                            <div>{format(new Date(goal.targetDate), "MMM d, yyyy")}</div>
                           </div>
                         )}
 
@@ -350,8 +354,8 @@ const ClientDetail = () => {
                         <div className="font-bold">{client.dietPlan.macros.protein}%</div>
                       </div>
                       <div className="bg-blue-50 p-3 rounded-md text-center">
-                        <div className="text-xs text-gray-500">Carbs</div>
-                        <div className="font-bold">{client.dietPlan.macros.carbs}%</div>
+                        <div className="text-xs text-gray-500">Carbs/Fats</div>
+                        <div className="font-bold">{client.dietPlan.macros.carbs}%/{client.dietPlan.macros.fats}%</div>
                       </div>
                     </div>
                     
@@ -432,18 +436,40 @@ const ClientDetail = () => {
             </TabsList>
             <TabsContent value="charts">
               <div className="grid md:grid-cols-2 gap-6">
-                <ProgressChart 
-                  entries={client.progressEntries} 
-                  metric="weight"
-                  title="Weight Progression" 
-                  color="#3B82F6"
-                />
-                <ProgressChart 
-                  entries={client.progressEntries} 
-                  metric="bodyFat"
-                  title="Body Fat %" 
-                  color="#10B981"
-                />
+                {client.progressEntries.length > 0 ? (
+                  <>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">Weight Progression</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-[200px] w-full">
+                          {/* Chart would go here */}
+                          <div className="flex items-center justify-center h-full text-gray-500">
+                            Weight chart visualization
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">Body Fat %</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-[200px] w-full">
+                          {/* Chart would go here */}
+                          <div className="flex items-center justify-center h-full text-gray-500">
+                            Body fat chart visualization
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
+                ) : (
+                  <div className="col-span-2 text-center py-6 text-gray-500">
+                    <p>No progress data available to display charts</p>
+                  </div>
+                )}
               </div>
             </TabsContent>
             <TabsContent value="entries">
@@ -458,21 +484,27 @@ const ClientDetail = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {client.progressEntries
-                      .sort((a, b) => b.date.getTime() - a.date.getTime())
-                      .map(entry => (
-                      <tr key={entry.id} className="border-b last:border-0">
-                        <td className="py-3 px-4">{format(entry.date, "MMM d, yyyy")}</td>
-                        <td className="py-3 px-4">{entry.weight} kg</td>
-                        <td className="py-3 px-4">{entry.bodyFat}%</td>
-                        <td className="py-3 px-4 hidden md:table-cell">{entry.notes}</td>
+                    {client.progressEntries.length > 0 ? (
+                      client.progressEntries
+                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                        .map(entry => (
+                        <tr key={entry.id} className="border-b last:border-0">
+                          <td className="py-3 px-4">{format(new Date(entry.date), "MMM d, yyyy")}</td>
+                          <td className="py-3 px-4">{entry.weight} kg</td>
+                          <td className="py-3 px-4">{entry.bodyFat}%</td>
+                          <td className="py-3 px-4 hidden md:table-cell">{entry.notes}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="py-6 text-center text-gray-500">
+                          No progress entries recorded
+                        </td>
                       </tr>
-                    ))}
-
+                    )}
                   </tbody>
                 </table>
               </div>
-
               <div className="mt-4 flex justify-end">
                 <Button variant="outline">
                   Add Progress Entry

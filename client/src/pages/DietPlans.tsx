@@ -7,7 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { DietPlan } from "@/types";
+import { DietPlan as BaseDietPlan } from "@/types";
+
+// Extend DietPlan to include _id property and clientId
+interface DietPlan extends BaseDietPlan {
+  _id?: string;
+  clientId?: string;
+}
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 
@@ -17,11 +23,11 @@ const getDietPlans = async (): Promise<DietPlan[]> => {
   return response.data;
 };
 
-const createDietPlan = async (plan: Omit<DietPlan, "id" | "_id">) => {
+const createDietPlan = async (plan: Omit<DietPlan, "id" | "_id"> & {id?: string, _id?: string}) => {
   try {
     // Create a proper payload matching the server's DietPlanSchema
     // Remove the id field completely as MongoDB will generate a new _id
-    const { id, _id, ...planWithoutId } = plan as any;
+    const { id, _id, ...planWithoutId } = plan;
     
     const planData = {
       ...planWithoutId,
@@ -87,7 +93,7 @@ const DietPlans = () => {
         description: "New diet plan has been added."
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error & { response?: { data?: { message?: string } } }) => {
       toast({
         title: "Error",
         description: error.response?.data?.message || "Failed to create diet plan.",
@@ -108,7 +114,7 @@ const DietPlans = () => {
         description: "Your changes have been saved."
       });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
         description: "Failed to update diet plan.",
@@ -140,14 +146,14 @@ const DietPlans = () => {
 
   const handleCreatePlan = () => {
     setCurrentPlan({
-      // Don't include 'id' field for new plans
+      id: "",  // Include empty id for type compatibility
       name: "",
       description: "",
       dailyCalories: 2000,
       macros: { protein: 30, carbs: 40, fats: 30 },
       meals: [{ name: "", description: "" }],
       clientId: "000000000000000000000000" // Use a valid ObjectId
-    } as DietPlan);
+    });
     setIsDialogOpen(true);
   };
 

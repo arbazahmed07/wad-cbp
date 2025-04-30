@@ -11,6 +11,7 @@ const goalRoutes = require('./routes/goals');
 const dietPlanRoutes = require('./routes/dietPlans');
 const workoutPlanRoutes = require('./routes/workoutPlans');
 const progressEntryRoutes = require('./routes/progressEntries');
+const dashboardRoutes = require('./routes/dashboard');
 
 // Load environment variables
 dotenv.config();
@@ -35,6 +36,7 @@ app.use('/api/goals', goalRoutes);
 app.use('/api/diet-plans', dietPlanRoutes);
 app.use('/api/workout-plans', workoutPlanRoutes);
 app.use('/api/progress-entries', progressEntryRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Serve static assets if in production
 if (process.env.NODE_ENV === 'production') {

@@ -1,39 +1,31 @@
-
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import ClientCard from "@/components/ClientCard";
-import StatCard from "@/components/StatCard";
-import { mockClients } from "@/data/mockData";
-import { Users, UserCheck, Clock, Goal } from "lucide-react";
-import { format } from "date-fns";
+import { 
+  Activity,
+  Calendar,
+  ClipboardList,
+  UserPlus,
+  User
+} from "lucide-react";
+import { Button } from '@/components/ui/button';
+import { getDashboardStats, getRecentClients } from '@/api';
+import { format } from 'date-fns';
+import { getClientId } from '@/utils/idUtils';
 
-const Dashboard = () => {
-  // Calculate some statistics for the dashboard
-  const totalClients = mockClients.length;
-  
-  const activeGoals = mockClients.reduce((count, client) => 
-    count + client.goals.filter(goal => goal.status === "In Progress").length, 0);
-  
-  const upcomingCheckIns = mockClients.filter(client => 
-    client.nextCheckIn && client.nextCheckIn >= new Date() && 
-    client.nextCheckIn <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-  ).length;
-  
-  const recentProgressUpdates = mockClients.reduce((count, client) => {
-    const recentEntries = client.progressEntries.filter(entry => 
-      entry.date >= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
-    return count + recentEntries.length;
-  }, 0);
+export default function Dashboard() {
+  // Fetch dashboard stats
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ['dashboardStats'],
+    queryFn: getDashboardStats
+  });
 
-  // Get next check-ins
-  const upcomingCheckInsList = mockClients
-    .filter(client => client.nextCheckIn && client.nextCheckIn >= new Date())
-    .sort((a, b) => a.nextCheckIn!.getTime() - b.nextCheckIn!.getTime())
-    .slice(0, 5);
+  // Fetch recent clients
+  const { data: recentClients, isLoading: clientsLoading } = useQuery({
+    queryKey: ['recentClients'],
+    queryFn: getRecentClients
+  });
 
-  // Get recent clients
-  const recentClients = [...mockClients]
-    .sort((a, b) => b.joinDate.getTime() - a.joinDate.getTime())
-    .slice(0, 4);
+  const isLoading = statsLoading || clientsLoading;
 
   return (
     <div className="space-y-6">
@@ -42,80 +34,130 @@ const Dashboard = () => {
         <p className="text-muted-foreground">Overview of your client management system.</p>
       </div>
 
-      {/* Stats Section */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard 
-          title="Total Clients" 
-          value={totalClients}
-          icon={<Users className="h-4 w-4" />}
-          trend="up"
-        />
-        <StatCard 
-          title="Active Goals" 
-          value={activeGoals}
-          icon={<Goal className="h-4 w-4" />}
-        />
-        <StatCard 
-          title="Upcoming Check-ins" 
-          value={upcomingCheckIns}
-          icon={<Clock className="h-4 w-4" />}
-          description="Next 7 days"
-        />
-        <StatCard 
-          title="Recent Progress Updates" 
-          value={recentProgressUpdates}
-          icon={<UserCheck className="h-4 w-4" />}
-          description="Last 7 days"
-          trend="up"
-        />
-      </div>
-
-      {/* Recent Clients and Upcoming Check-ins */}
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-4">
-          <h2 className="text-xl font-semibold">Recent Clients</h2>
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-            {recentClients.map(client => (
-              <ClientCard key={client.id} client={client} />
-            ))}
+      {isLoading ? (
+        <div className="flex items-center justify-center h-[60vh]">
+          <p>Loading dashboard data...</p>
+        </div>
+      ) : (
+        <>
+          {/* Stats Section */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Clients</CardTitle>
+                <User className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats?.totalClients || 0}</div>
+                <p className="text-xs text-muted-foreground">Active client roster</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">New Clients</CardTitle>
+                <UserPlus className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats?.newClients || 0}</div>
+                <p className="text-xs text-muted-foreground">In the last 30 days</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Upcoming Check-ins</CardTitle>
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats?.upcomingCheckIns?.length || 0}</div>
+                <p className="text-xs text-muted-foreground">Scheduled check-ins</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
+                <Activity className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats?.activityCount || 0}</div>
+                <p className="text-xs text-muted-foreground">Updates in the last 7 days</p>
+              </CardContent>
+            </Card>
           </div>
-        </div>
 
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle>Upcoming Check-ins</CardTitle>
-              <CardDescription>Next scheduled client reviews</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {upcomingCheckInsList.map(client => (
-                  <div key={client.id} className="flex justify-between items-center border-b pb-3 last:border-0 last:pb-0">
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center mr-3">
-                        {client.firstName.charAt(0) + client.lastName.charAt(0)}
+          {/* Upcoming Check-ins */}
+          <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle>Upcoming Check-ins</CardTitle>
+                <CardDescription>Next 5 scheduled client check-ins</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {stats?.upcomingCheckIns && stats.upcomingCheckIns.length > 0 ? (
+                  <div className="space-y-4">
+                    {stats.upcomingCheckIns.map((checkIn) => (
+                      <div key={checkIn._id} className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{checkIn.clientId.firstName} {checkIn.clientId.lastName}</p>
+                          <p className="text-sm text-muted-foreground">{checkIn.notes || "No notes"}</p>
+                        </div>
+                        <div className="text-sm text-right">
+                          {format(new Date(checkIn.date), "MMM d, yyyy")}
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium">{client.firstName} {client.lastName}</p>
-                        <p className="text-sm text-gray-500">{client.goals[0]?.type || "No goal set"}</p>
-                      </div>
-                    </div>
-                    <div className="text-sm font-medium text-gray-600">
-                      {format(client.nextCheckIn!, "MMM d")}
-                    </div>
+                    ))}
                   </div>
-                ))}
-
-                {upcomingCheckInsList.length === 0 && (
-                  <p className="text-gray-500 text-center py-4">No upcoming check-ins scheduled</p>
+                ) : (
+                  <p className="text-muted-foreground">No upcoming check-ins</p>
                 )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+              </CardContent>
+            </Card>
+
+            {/* Recent Clients */}
+            <Card className="col-span-1">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Recent Clients</CardTitle>
+                  <CardDescription>New client sign-ups</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" asChild>
+                  <a href="/clients">View All</a>
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {recentClients && recentClients.length > 0 ? (
+                  <div className="space-y-4">
+                    {recentClients.map((client) => (
+                      <div key={getClientId(client)} className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
+                            <span className="font-medium text-slate-600">
+                              {client.firstName?.[0]}{client.lastName?.[0]}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-medium">{client.firstName} {client.lastName}</p>
+                            <p className="text-sm text-muted-foreground">{client.email}</p>
+                          </div>
+                        </div>
+                        <div className="text-right text-sm">
+                          <a 
+                            href={`/clients/${getClientId(client)}`} 
+                            className="text-blue-500 hover:underline"
+                          >
+                            View
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">No recent clients</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   );
-};
-
-export default Dashboard;
+}
